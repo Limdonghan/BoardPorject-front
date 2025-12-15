@@ -24,21 +24,23 @@ export const postAPI = {
   },
 
   // 게시글 작성
-  createPost: async (title, category, context) => {
+  createPost: async (title, category, context, imageUrls = []) => {
     const response = await apiClient.post("/api/post", {
       title,
       category,
       context,
+      imageUrl: imageUrls,
     });
     return response.data;
   },
 
   // 게시글 수정
-  updatePost: async (id, title, category, context) => {
+  updatePost: async (id, title, category, context, imageUrls = []) => {
     const response = await apiClient.patch(`/api/post/${id}`, {
       title,
       category,
       context,
+      imageUrl: imageUrls,
     });
     return response.data;
   },

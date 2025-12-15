@@ -143,6 +143,22 @@
   gap: var(--spacing-xs);
 }
 
+.post-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.post-image {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
 .post-content {
   font-size: 1.125rem;
   line-height: 1.8;

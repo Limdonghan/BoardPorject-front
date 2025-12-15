@@ -365,6 +365,22 @@
   color: var(--text-primary);
 }
 
+.report-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.report-image {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
 /* 댓글 상세 카드 */
 .comment-detail-card {
   background-color: var(--bg-secondary);

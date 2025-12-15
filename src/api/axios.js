@@ -1,5 +1,7 @@
 import axios from "axios";
 
+//const VITE_API_URL = import.meta.env.VITE_API_URL;
+
 // 개발 환경에서는 Vite 프록시 사용, 프로덕션에서는 직접 URL 사용
 const API_BASE_URL = import.meta.env.DEV ? "" : "http://localhost:8080";
 

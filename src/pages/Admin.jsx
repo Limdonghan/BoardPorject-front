@@ -6,6 +6,9 @@ import Layout from "../components/Layout";
 import Button from "../components/Button";
 import "./Admin.css";
 
+// 기본 이미지 URL (AWS S3)
+const DEFAULT_IMAGE_URL = "https://board-image-s3-bucket.s3.ap-northeast-2.amazonaws.com/default_image.jpg";
+
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -615,6 +618,27 @@ const Admin = () => {
                               {selectedReport.postInfo.context}
                             </div>
                           </div>
+                          {selectedReport.postInfo.imageUrl &&
+                            selectedReport.postInfo.imageUrl.length > 0 && (
+                              <div className="post-detail-item full-width">
+                                <span className="detail-label">이미지:</span>
+                                <div className="report-images">
+                                  {selectedReport.postInfo.imageUrl.map(
+                                    (url, index) => (
+                                      <img
+                                        key={index}
+                                        src={url}
+                                        alt={`신고 게시글 이미지 ${index + 1}`}
+                                        className="report-image"
+                                        onError={e => {
+                                          e.target.style.display = "none";
+                                        }}
+                                      />
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           <div className="post-detail-item">
                             <span className="detail-label">조회수:</span>
                             <span className="detail-value">

@@ -11,6 +11,9 @@ import Textarea from "../components/Textarea";
 import ReportModal from "../components/ReportModal";
 import "./PostDetail.css";
 
+// 기본 이미지 URL (AWS S3)
+const DEFAULT_IMAGE_URL = "https://board-image-s3-bucket.s3.ap-northeast-2.amazonaws.com/default_image.jpg";
+
 const PostDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,10 +30,101 @@ const PostDetail = () => {
   const [showPostReportModal, setShowPostReportModal] = useState(false);
   const [showCommentReportModal, setShowCommentReportModal] = useState(null); // commentId
 
+  const fetchPost = async () => {
+    try {
+      const postData = await postAPI.getPost(id);
+      console.log("게시글 상세 정보 (전체):", postData);
+      setPost(postData);
+      return postData;
+    } catch (error) {
+      console.error("게시글 조회 실패:", error);
+      throw error;
+    }
+  };
+
+  const fetchComments = async () => {
+    try {
+      const commentsData = await commentAPI.getComments(id);
+      const commentsWithReactions = (commentsData || []).map(comment => ({
+        ...comment,
+        likeCount: comment.likeCount || 0,
+        disLikeCount: comment.disLikeCount || 0,
+        userReaction: null,
+      }));
+      setComments(commentsWithReactions);
+      return commentsWithReactions;
+    } catch (error) {
+      console.error("댓글 조회 실패:", error);
+      throw error;
+    }
+  };
+
+  const fetchAdjacentPosts = async () => {
+    try {
+      const response = await postAPI.getPostList(0, 1000);
+      const allPosts = response.content || [];
+      const currentIndex = allPosts.findIndex(p => p.id === parseInt(id));
+
+      if (currentIndex !== -1) {
+        if (currentIndex > 0) {
+          setPrevPost(allPosts[currentIndex - 1]);
+        } else {
+          setPrevPost(null);
+        }
+
+        if (currentIndex < allPosts.length - 1) {
+          setNextPost(allPosts[currentIndex + 1]);
+        } else {
+          setNextPost(null);
+        }
+      }
+    } catch (error) {
+      console.error("이전/다음 글 조회 실패:", error);
+    }
+  };
+
   useEffect(() => {
-    fetchPost();
-    fetchComments();
+    let isMounted = true;
+    const abortController = new AbortController();
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [postData, commentsData] = await Promise.all([
+          postAPI.getPost(id),
+          commentAPI.getComments(id)
+        ]);
+        
+        if (!abortController.signal.aborted && isMounted) {
+          console.log("게시글 상세 정보 (전체):", postData);
+          setPost(postData);
+          
+          const commentsWithReactions = (commentsData || []).map(comment => ({
+            ...comment,
+            likeCount: comment.likeCount || 0,
+            disLikeCount: comment.disLikeCount || 0,
+            userReaction: null,
+          }));
+          setComments(commentsWithReactions);
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted && isMounted) {
+          console.error("게시글 조회 실패:", error);
+        }
+      } finally {
+        if (!abortController.signal.aborted && isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadData();
     fetchAdjacentPosts();
+    
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
   }, [id]);
 
   useEffect(() => {
@@ -83,73 +177,6 @@ const PostDetail = () => {
     }
   }, [user, post]);
 
-  const fetchPost = async () => {
-    try {
-      const postData = await postAPI.getPost(id);
-      console.log("게시글 상세 정보 (전체):", postData);
-      console.log("게시글 작성자 관련 모든 필드:", {
-        user: postData.user,
-        authorName: postData.authorName,
-        writer: postData.writer,
-        username: postData.username,
-        userId: postData.userId,
-        authorId: postData.authorId,
-        writerId: postData.writerId,
-        createdBy: postData.createdBy,
-        ownerId: postData.ownerId,
-        // 모든 키 확인
-        allKeys: Object.keys(postData),
-      });
-      setPost(postData);
-    } catch (error) {
-      console.error("게시글 조회 실패:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchComments = async () => {
-    try {
-      const commentsData = await commentAPI.getComments(id);
-      // 각 댓글에 좋아요/싫어요 수 초기화 (없으면 0)
-      const commentsWithReactions = (commentsData || []).map(comment => ({
-        ...comment,
-        likeCount: comment.likeCount || 0,
-        disLikeCount: comment.disLikeCount || 0,
-        userReaction: null, // 사용자의 반응 상태
-      }));
-      setComments(commentsWithReactions);
-    } catch (error) {
-      console.error("댓글 조회 실패:", error);
-    }
-  };
-
-  const fetchAdjacentPosts = async () => {
-    try {
-      // 게시글 목록을 가져와서 현재 글의 이전/다음 글 찾기
-      const response = await postAPI.getPostList(0, 1000); // 충분히 많은 게시글 가져오기
-      const allPosts = response.content || [];
-      const currentIndex = allPosts.findIndex(p => p.id === parseInt(id));
-
-      if (currentIndex !== -1) {
-        // 이전 글 (더 최신 글, 인덱스가 작은 것)
-        if (currentIndex > 0) {
-          setPrevPost(allPosts[currentIndex - 1]);
-        } else {
-          setPrevPost(null);
-        }
-
-        // 다음 글 (더 오래된 글, 인덱스가 큰 것)
-        if (currentIndex < allPosts.length - 1) {
-          setNextPost(allPosts[currentIndex + 1]);
-        } else {
-          setNextPost(null);
-        }
-      }
-    } catch (error) {
-      console.error("이전/다음 글 조회 실패:", error);
-    }
-  };
 
   const handleDelete = async () => {
     if (!window.confirm("정말 삭제하시겠습니까?")) {
@@ -449,6 +476,23 @@ const PostDetail = () => {
             <span>❤️ 좋아요 {post.likeCount}</span>
             <span>💬 댓글 {comments.length}</span>
           </div>
+
+          {/* 게시글 이미지 */}
+          {post.imageUrl && post.imageUrl.length > 0 && (
+            <div className="post-images">
+              {post.imageUrl.map((url, index) => (
+                <img
+                  key={index}
+                  src={url}
+                  alt={`게시글 이미지 ${index + 1}`}
+                  className="post-image"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="post-content">{post.context}</div>
 
