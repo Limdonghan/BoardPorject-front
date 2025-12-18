@@ -54,7 +54,7 @@ export const postAPI = {
   // 게시글 반응 (좋아요/싫어요)
   addReaction: async (id, reactionType) => {
     const response = await apiClient.post(`/api/post/${id}/reactions`, {
-      rectionType: reactionType, // 백엔드 DTO 필드명이 rectionType
+      reactionType: reactionType, // 백엔드 DTO 필드명이 rectionType
     });
     return response.data;
   },

@@ -6,6 +6,9 @@ import { commentAPI } from "../api/comment";
 import { useAuth } from "../context/AuthContext";
 import Layout from "../components/Layout";
 import Button from "../components/Button";
+import ErrorNotice from "../components/ErrorNotice";
+import { getUserErrorMessage } from "../utils/error";
+import { logDebug, logError, logWarn } from "../utils/logger";
 import "./Admin.css";
 
 // 기본 이미지 URL (AWS S3)
@@ -95,37 +98,31 @@ const Admin = () => {
             const content = response.content || [];
             allData = [...allData, ...content];
           } catch (pageError) {
-            console.error(`페이지 ${page} 조회 실패 (무시):`, pageError);
+            logWarn(
+              "Admin.fetchAllReportsForStats",
+              `페이지 ${page} 조회 실패 (무시)`
+            );
+            logError("Admin.fetchAllReportsForStats", pageError);
             // 개별 페이지 실패는 무시하고 계속 진행
             break;
           }
         }
       } catch (firstPageError) {
-        console.error("첫 페이지 조회 실패:", firstPageError);
+        logWarn("Admin.fetchAllReportsForStats", "첫 페이지 조회 실패");
+        logError("Admin.fetchAllReportsForStats", firstPageError);
         // 첫 페이지 실패 시 빈 배열 반환
         allData = [];
       }
 
-      console.log("통계용 데이터 로드 완료:", allData.length, "개");
-      console.log("상태별 분포:", {
-        전체: allData.length,
-        "접수 대기": allData.filter(r => r.reportStatus === "접수 대기").length,
-        "처리 중": allData.filter(r => r.reportStatus === "처리 중").length,
-        "처리 완료": allData.filter(r => r.reportStatus === "처리 완료").length,
-        반려: allData.filter(r => r.reportStatus === "반려").length,
-        기타: allData
-          .filter(
-            r =>
-              !["접수 대기", "처리 중", "처리 완료", "반려"].includes(
-                r.reportStatus
-              )
-          )
-          .map(r => r.reportStatus),
-      });
+      logDebug(
+        "Admin.fetchAllReportsForStats",
+        "통계용 데이터 로드 완료",
+        allData.length
+      );
 
       setAllReports(allData);
     } catch (error) {
-      console.error("통계용 전체 데이터 조회 실패:", error);
+      logError("Admin.fetchAllReportsForStats", error);
       // 실패해도 계속 진행
     }
   };
@@ -140,7 +137,7 @@ const Admin = () => {
       try {
         statsPromise = fetchAllReportsForStats();
       } catch (statsError) {
-        console.error("통계 데이터 조회 실패 (무시):", statsError);
+        logError("Admin.fetchReports.stats", statsError);
         // 통계 데이터 실패는 무시하고 계속 진행
       }
 
@@ -199,18 +196,20 @@ const Admin = () => {
           setTotalPages(Math.ceil(total / pageSize));
           setTotalElements(total);
         } catch (filterError) {
-          console.error("필터링된 신고 목록 조회 실패:", filterError);
-          console.error("필터링 에러 상세:", {
-            message: filterError.message,
-            response: filterError.response,
-            status: filterError.response?.status,
-            data: filterError.response?.data,
+          logError("Admin.fetchReports.filtering", filterError, {
+            typeFilter,
+            statusId,
           });
           // 필터링 실패 시 빈 배열로 설정
           setReports([]);
           setTotalPages(0);
           setTotalElements(0);
-          setError("신고 목록을 불러오는데 실패했습니다.");
+          setError(
+            getUserErrorMessage(
+              filterError,
+              "신고 목록을 불러오는데 실패했습니다."
+            )
+          );
         }
       } else {
         try {
@@ -248,18 +247,20 @@ const Admin = () => {
           setTotalPages(response.totalPages || 0);
           setTotalElements(response.totalElements || 0);
         } catch (apiError) {
-          console.error("신고 목록 API 호출 실패:", apiError);
-          console.error("API 에러 상세:", {
-            message: apiError.message,
-            response: apiError.response,
-            status: apiError.response?.status,
-            data: apiError.response?.data,
+          logError("Admin.fetchReports.api", apiError, {
+            typeFilter,
+            statusId,
           });
           // API 호출 실패 시 빈 배열로 설정
           setReports([]);
           setTotalPages(0);
           setTotalElements(0);
-          setError("신고 목록을 불러오는데 실패했습니다.");
+          setError(
+            getUserErrorMessage(
+              apiError,
+              "신고 목록을 불러오는데 실패했습니다."
+            )
+          );
         }
       }
 
@@ -267,11 +268,13 @@ const Admin = () => {
       try {
         await statsPromise;
       } catch (statsError) {
-        console.error("통계 데이터 조회 실패 (무시):", statsError);
+        logError("Admin.fetchReports.stats.await", statsError);
       }
     } catch (error) {
-      console.error("신고 목록 조회 중 예상치 못한 에러:", error);
-      setError("신고 목록을 불러오는데 실패했습니다.");
+      logError("Admin.fetchReports.unexpected", error);
+      setError(
+        getUserErrorMessage(error, "신고 목록을 불러오는데 실패했습니다.")
+      );
       // 최소한 빈 상태로 설정
       setReports([]);
       setTotalPages(0);
@@ -288,7 +291,7 @@ const Admin = () => {
   const handleReportClick = async reportId => {
     try {
       const detail = await adminAPI.getReportDetail(reportId);
-      console.log("신고 상세 정보:", detail); // 디버깅용
+      logDebug("Admin.handleReportClick", "신고 상세 정보", detail);
       setSelectedReport(detail);
 
       /**
@@ -314,8 +317,10 @@ const Admin = () => {
         setCommentDeletedStatus(null);
       }
     } catch (error) {
-      console.error("신고 상세 조회 실패:", error);
-      alert("신고 상세 정보를 불러오는데 실패했습니다.");
+      logError("Admin.handleReportClick", error, { reportId });
+      setError(
+        getUserErrorMessage(error, "신고 상세 정보를 불러오는데 실패했습니다.")
+      );
     }
   };
 
@@ -333,12 +338,8 @@ const Admin = () => {
       setSelectedReport(null);
       fetchReports();
     } catch (error) {
-      console.error("신고 상태 변경 실패:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "신고 상태 변경에 실패했습니다.";
-      alert(errorMessage);
+      logError("Admin.handleStatusChange", error, { reportId, newStatus });
+      setError(getUserErrorMessage(error, "신고 상태 변경에 실패했습니다."));
     } finally {
       setUpdatingStatus(false);
     }
@@ -352,8 +353,11 @@ const Admin = () => {
     // 백엔드 관리자 삭제 컨트롤러는 reportId를 받는다.
     const reportId = selectedReport?.reportId;
     if (!reportId) {
-      console.error("신고 ID(reportId)를 찾을 수 없습니다:", selectedReport);
-      alert("신고 ID를 찾을 수 없습니다.");
+      logWarn(
+        "Admin.handleDeletePost",
+        "신고 ID(reportId)를 찾을 수 없습니다."
+      );
+      setError("신고 ID를 찾을 수 없습니다.");
       return;
     }
 
@@ -378,12 +382,8 @@ const Admin = () => {
       setPostDeletedStatus(null); // 상태 초기화
       fetchReports(); // 목록 새로고침
     } catch (error) {
-      console.error("게시글 삭제 실패:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "게시글 삭제에 실패했습니다.";
-      alert(errorMessage);
+      logError("Admin.handleDeletePost", error, { reportId });
+      setError(getUserErrorMessage(error, "게시글 삭제에 실패했습니다."));
     } finally {
       setDeleting(false);
     }
@@ -397,8 +397,11 @@ const Admin = () => {
     // 백엔드 관리자 삭제 컨트롤러는 reportId를 받는다.
     const reportId = selectedReport?.reportId;
     if (!reportId) {
-      console.error("신고 ID(reportId)를 찾을 수 없습니다:", selectedReport);
-      alert("신고 ID를 찾을 수 없습니다.");
+      logWarn(
+        "Admin.handleDeleteComment",
+        "신고 ID(reportId)를 찾을 수 없습니다."
+      );
+      setError("신고 ID를 찾을 수 없습니다.");
       return;
     }
 
@@ -423,12 +426,8 @@ const Admin = () => {
       setCommentDeletedStatus(null); // 상태 초기화
       fetchReports(); // 목록 새로고침
     } catch (error) {
-      console.error("댓글 삭제 실패:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "댓글 삭제에 실패했습니다.";
-      alert(errorMessage);
+      logError("Admin.handleDeleteComment", error, { reportId });
+      setError(getUserErrorMessage(error, "댓글 삭제에 실패했습니다."));
     } finally {
       setDeleting(false);
     }
@@ -495,10 +494,10 @@ const Admin = () => {
           <p className="admin-subtitle">신고된 게시글 및 댓글 관리</p>
         </div>
 
+        <ErrorNotice message={error} onClose={() => setError(null)} />
+
         {loading ? (
           <div className="admin-loading">로딩 중...</div>
-        ) : error ? (
-          <div className="admin-error">{error}</div>
         ) : (
           <>
             {/* 필터 및 통계 */}

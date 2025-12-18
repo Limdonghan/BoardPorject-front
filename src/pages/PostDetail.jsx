@@ -9,6 +9,9 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import Textarea from "../components/Textarea";
 import ReportModal from "../components/ReportModal";
+import ErrorNotice from "../components/ErrorNotice";
+import { getUserErrorMessage } from "../utils/error";
+import { logDebug, logError, logWarn } from "../utils/logger";
 import "./PostDetail.css";
 
 // 기본 이미지 URL (AWS S3)
@@ -22,6 +25,7 @@ const PostDetail = () => {
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uiError, setUiError] = useState(null);
   const [commentContent, setCommentContent] = useState("");
   const [isOwner, setIsOwner] = useState(false);
   const [reacting, setReacting] = useState(false);
@@ -41,11 +45,11 @@ const PostDetail = () => {
   const fetchPost = async () => {
     try {
       const postData = await postAPI.getPost(id);
-      console.log("게시글 상세 정보 (전체):", postData);
+      logDebug("PostDetail.fetchPost", "게시글 상세", postData);
       setPost(postData);
       return postData;
     } catch (error) {
-      console.error("게시글 조회 실패:", error);
+      logError("PostDetail.fetchPost", error, { id });
       throw error;
     }
   };
@@ -53,7 +57,7 @@ const PostDetail = () => {
   const fetchComments = async () => {
     try {
       const commentsData = await commentAPI.getComments(id);
-      console.log("댓글 데이터 (fetchComments):", commentsData);
+      logDebug("PostDetail.fetchComments", "댓글 데이터", commentsData);
 
       // 댓글 데이터가 배열인지 확인
       const commentsArray = Array.isArray(commentsData)
@@ -78,13 +82,7 @@ const PostDetail = () => {
       setComments(commentsWithReactions);
       return commentsWithReactions;
     } catch (error) {
-      console.error("댓글 조회 실패:", error);
-      console.error("댓글 조회 에러 상세:", {
-        message: error.message,
-        response: error.response,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
+      logError("PostDetail.fetchComments", error, { id });
       // 댓글 조회 실패 시 빈 배열로 설정
       setComments([]);
       return [];
@@ -111,7 +109,7 @@ const PostDetail = () => {
         }
       }
     } catch (error) {
-      console.error("이전/다음 글 조회 실패:", error);
+      logError("PostDetail.fetchAdjacentPosts", error, { id });
     }
   };
 
@@ -122,6 +120,7 @@ const PostDetail = () => {
     const loadData = async () => {
       try {
         setLoading(true);
+        setUiError(null);
 
         // 게시글과 댓글을 별도로 처리하여 댓글 API 실패 시에도 게시글은 표시되도록 함
         let postData = null;
@@ -131,21 +130,22 @@ const PostDetail = () => {
         try {
           postData = await postAPI.getPost(id);
           if (!abortController.signal.aborted && isMounted) {
-            console.log("게시글 상세 정보 (전체):", postData);
+            logDebug("PostDetail.loadData", "게시글 상세", postData);
             setPost(postData);
           }
         } catch (error) {
-          console.error("게시글 조회 실패:", error);
+          logError("PostDetail.loadData.post", error, { id });
           if (!abortController.signal.aborted && isMounted) {
             // 게시글 조회 실패 시 에러 상태로 설정
             setPost(null);
+            setUiError(getUserErrorMessage(error, "게시글을 불러오지 못했습니다."));
           }
         }
 
         // 댓글 조회 (실패해도 게시글은 표시)
         try {
           commentsData = await commentAPI.getComments(id);
-          console.log("댓글 데이터:", commentsData);
+          logDebug("PostDetail.loadData", "댓글 데이터", commentsData);
 
           if (!abortController.signal.aborted && isMounted) {
             // 댓글 데이터가 배열인지 확인
@@ -170,20 +170,17 @@ const PostDetail = () => {
             setComments(commentsWithReactions);
           }
         } catch (error) {
-          console.error("댓글 조회 실패:", error);
-          console.error("댓글 조회 에러 상세:", {
-            message: error.message,
-            response: error.response,
-            status: error.response?.status,
-            data: error.response?.data,
-          });
+          logError("PostDetail.loadData.comments", error, { id });
           // 댓글 조회 실패 시 빈 배열로 설정 (게시글은 계속 표시)
           if (!abortController.signal.aborted && isMounted) {
             setComments([]);
+            // 댓글은 보조 정보라 배너만 표시하고 페이지는 유지
+            setUiError(getUserErrorMessage(error, "댓글을 불러오지 못했습니다."));
           }
         }
       } catch (error) {
-        console.error("데이터 로드 중 예상치 못한 에러:", error);
+        logError("PostDetail.loadData.unexpected", error, { id });
+        setUiError(getUserErrorMessage(error));
       } finally {
         if (!abortController.signal.aborted && isMounted) {
           setLoading(false);
@@ -210,39 +207,12 @@ const PostDetail = () => {
       const currentUser =
         user?.username || user?.nickName || user?.email || user?.user;
 
-      console.log("isOwner 체크:", {
+      logDebug("PostDetail.isOwner", {
         postAuthor,
         currentUser,
-        postAuthorType: typeof postAuthor,
-        currentUserType: typeof currentUser,
-        post: {
-          user: post.user,
-          authorName: post.authorName,
-          writer: post.writer,
-          username: post.username,
-          userId: post.userId,
-          authorId: post.authorId,
-          writerId: post.writerId,
-          createdBy: post.createdBy,
-          ownerId: post.ownerId,
-        },
-        user: {
-          username: user?.username,
-          nickName: user?.nickName,
-          email: user?.email,
-          user: user?.user,
-          id: user?.id,
-          userId: user?.userId,
-          // 사용자 객체의 모든 키
-          allKeys: user ? Object.keys(user) : [],
-        },
-        isMatch: postAuthor === currentUser,
         isMatchStrict: postAuthor === currentUser,
         isMatchLoose: String(postAuthor) === String(currentUser),
       });
-
-      // 사용자 객체 전체 로깅
-      console.log("사용자 정보 전체:", user);
 
       setIsOwner(postAuthor === currentUser);
     } else {
@@ -259,7 +229,8 @@ const PostDetail = () => {
       await postAPI.deletePost(id);
       navigate("/posts");
     } catch (error) {
-      alert("게시글 삭제에 실패했습니다.");
+      logError("PostDetail.handleDelete", error, { id });
+      setUiError(getUserErrorMessage(error, "게시글 삭제에 실패했습니다."));
     }
   };
 
@@ -270,7 +241,7 @@ const PostDetail = () => {
    */
   const handleReaction = async reactionType => {
     if (!isAuthenticated) {
-      alert("로그인이 필요합니다.");
+      setUiError("로그인이 필요합니다.");
       navigate("/login");
       return;
     }
@@ -292,7 +263,7 @@ const PostDetail = () => {
       // 이전 반응 상태 저장 (롤백용)
       const previousReaction = userReaction;
 
-      console.log("반응 요청:", {
+      logDebug("PostDetail.handleReaction", {
         id,
         reactionType,
         previousReaction,
@@ -332,15 +303,12 @@ const PostDetail = () => {
 
       // 백엔드 API 호출
       const result = await postAPI.addReaction(id, reactionType);
-      console.log("반응 성공:", result);
+      logDebug("PostDetail.handleReaction", "반응 성공", result);
 
       // 서버에서 최신 데이터 가져오기 (실제 반영된 값 확인)
       await fetchPost();
     } catch (error) {
-      console.error("반응 추가 실패:", error);
-      console.error("에러 응답:", error.response);
-      console.error("에러 상태:", error.response?.status);
-      console.error("에러 데이터:", error.response?.data);
+      logError("PostDetail.handleReaction", error, { id, reactionType });
 
       // 낙관적 업데이트 롤백
       if (post) {
@@ -373,11 +341,7 @@ const PostDetail = () => {
         setUserReaction(previousReaction); // 이전 상태로 복원
       }
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "반응 추가에 실패했습니다.";
-      alert(errorMessage);
+      setUiError(getUserErrorMessage(error, "반응 추가에 실패했습니다."));
     } finally {
       setReacting(false);
     }
@@ -386,7 +350,7 @@ const PostDetail = () => {
   const handleCommentSubmit = async e => {
     e.preventDefault();
     if (!isAuthenticated) {
-      alert("로그인이 필요합니다.");
+      setUiError("로그인이 필요합니다.");
       navigate("/login");
       return;
     }
@@ -396,28 +360,23 @@ const PostDetail = () => {
     }
 
     try {
-      console.log("댓글 작성 요청:", { postId: id, content: commentContent });
+      logDebug("PostDetail.handleCommentSubmit", "댓글 작성 요청", {
+        postId: id,
+        contentLength: commentContent?.length,
+      });
       const result = await commentAPI.createComment(id, commentContent);
-      console.log("댓글 작성 성공:", result);
+      logDebug("PostDetail.handleCommentSubmit", "댓글 작성 성공", result);
       setCommentContent("");
       fetchComments();
     } catch (error) {
-      console.error("댓글 작성 실패:", error);
-      console.error("에러 응답:", error.response);
-      console.error("에러 상태:", error.response?.status);
-      console.error("에러 데이터:", error.response?.data);
-
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "댓글 작성에 실패했습니다.";
-      alert(errorMessage);
+      logError("PostDetail.handleCommentSubmit", error, { id });
+      setUiError(getUserErrorMessage(error, "댓글 작성에 실패했습니다."));
     }
   };
 
   const handleCommentReaction = (commentId, reactionType) => {
     if (!isAuthenticated) {
-      alert("로그인이 필요합니다.");
+      setUiError("로그인이 필요합니다.");
       navigate("/login");
       return;
     }
@@ -482,7 +441,7 @@ const PostDetail = () => {
   const handleCommentDelete = async comment => {
     const commentId = comment.commentId || comment.id;
     if (!commentId) {
-      alert("댓글 ID를 찾을 수 없습니다.");
+      setUiError("댓글 ID를 찾을 수 없습니다.");
       return;
     }
     if (!window.confirm("정말 이 댓글을 삭제하시겠습니까?")) return;
@@ -492,12 +451,8 @@ const PostDetail = () => {
       await commentAPI.deleteComment(id, commentId);
       await fetchComments();
     } catch (error) {
-      console.error("댓글 삭제 실패:", error);
-      alert(
-        error.response?.data?.message ||
-          error.response?.data?.error ||
-          "댓글 삭제에 실패했습니다."
-      );
+      logError("PostDetail.handleCommentDelete", error, { id, commentId });
+      setUiError(getUserErrorMessage(error, "댓글 삭제에 실패했습니다."));
     } finally {
       setDeletingCommentId(null);
     }
@@ -525,7 +480,7 @@ const PostDetail = () => {
    */
   const handleUpdateComment = async commentId => {
     if (!editingCommentContent.trim()) {
-      alert("댓글 내용을 입력해주세요.");
+      setUiError("댓글 내용을 입력해주세요.");
       return;
     }
 
@@ -536,12 +491,8 @@ const PostDetail = () => {
       setEditingCommentContent("");
       await fetchComments();
     } catch (error) {
-      console.error("댓글 수정 실패:", error);
-      alert(
-        error.response?.data?.message ||
-          error.response?.data?.error ||
-          "댓글 수정에 실패했습니다."
-      );
+      logError("PostDetail.handleUpdateComment", error, { id, commentId });
+      setUiError(getUserErrorMessage(error, "댓글 수정에 실패했습니다."));
     } finally {
       setUpdatingCommentId(null);
     }
@@ -575,7 +526,7 @@ const PostDetail = () => {
   const handleReplySubmit = async (e, parentCommentId) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      alert("로그인이 필요합니다.");
+      setUiError("로그인이 필요합니다.");
       navigate("/login");
       return;
     }
@@ -587,13 +538,13 @@ const PostDetail = () => {
 
     try {
       setSubmittingReplyId(parentCommentId);
-      console.log("대댓글 작성 요청:", {
+      logDebug("PostDetail.handleReplySubmit", "대댓글 작성 요청", {
         postId: id,
         parentId: parentCommentId,
-        content,
+        contentLength: content?.length,
       });
       await commentAPI.createComment(id, content, parentCommentId);
-      console.log("대댓글 작성 성공");
+      logDebug("PostDetail.handleReplySubmit", "대댓글 작성 성공");
       setReplyingToCommentId(null);
       setReplyContent(prev => {
         const newContent = { ...prev };
@@ -602,12 +553,8 @@ const PostDetail = () => {
       });
       await fetchComments();
     } catch (error) {
-      console.error("대댓글 작성 실패:", error);
-      alert(
-        error.response?.data?.message ||
-          error.response?.data?.error ||
-          "대댓글 작성에 실패했습니다."
-      );
+      logError("PostDetail.handleReplySubmit", error, { id, parentId: parentCommentId });
+      setUiError(getUserErrorMessage(error, "대댓글 작성에 실패했습니다."));
     } finally {
       setSubmittingReplyId(null);
     }
@@ -832,7 +779,8 @@ const PostDetail = () => {
       await reportAPI.reportPost(id, reasonId);
       setShowPostReportModal(false);
     } catch (error) {
-      console.error("게시글 신고 실패:", error);
+      logError("PostDetail.handlePostReport", error, { id, reasonId });
+      setUiError(getUserErrorMessage(error, "게시글 신고에 실패했습니다."));
       throw error;
     }
   };
@@ -842,7 +790,11 @@ const PostDetail = () => {
       await reportAPI.reportComment(showCommentReportModal, reasonId);
       setShowCommentReportModal(null);
     } catch (error) {
-      console.error("댓글 신고 실패:", error);
+      logError("PostDetail.handleCommentReport", error, {
+        commentId: showCommentReportModal,
+        reasonId,
+      });
+      setUiError(getUserErrorMessage(error, "댓글 신고에 실패했습니다."));
       throw error;
     }
   };
@@ -876,6 +828,8 @@ const PostDetail = () => {
             ← 목록으로
           </Button>
         </div>
+
+        <ErrorNotice message={uiError} onClose={() => setUiError(null)} />
 
         <div className="post-detail">
           <div className="post-header">
