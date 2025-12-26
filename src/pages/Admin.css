@@ -6,7 +6,19 @@
 
 .admin-header {
   margin-bottom: var(--spacing-2xl);
+}
+
+.admin-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.admin-header-content > div:first-child {
   text-align: center;
+  flex: 1;
 }
 
 .admin-title {
@@ -484,6 +496,15 @@
 @media (max-width: 768px) {
   .admin-container {
     padding: var(--spacing-md);
+  }
+
+  .admin-header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .admin-header-content > div:first-child {
+    width: 100%;
   }
 
   .admin-title {

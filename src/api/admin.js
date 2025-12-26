@@ -84,4 +84,10 @@ export const adminAPI = {
     const response = await apiClient.delete(`/api/admin/${id}`);
     return response.data;
   },
+
+  // Typesense 데이터 동기화
+  syncTypesense: async () => {
+    const response = await apiClient.get("/api/admin/sync-typesense");
+    return response.data;
+  },
 };

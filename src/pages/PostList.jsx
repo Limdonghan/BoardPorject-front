@@ -116,7 +116,19 @@ const PostList = () => {
         if (post.thumbnailUrl) {
           thumbnailUrl = post.thumbnailUrl;
         }
-        // 2. imageUrl이 배열인 경우 첫 번째 이미지 사용
+        // 2. imageURL (백엔드 PostSearchResultDTO의 필드명 - 대문자 URL)
+        else if (
+          post.imageURL &&
+          Array.isArray(post.imageURL) &&
+          post.imageURL.length > 0
+        ) {
+          thumbnailUrl = post.imageURL[0];
+        }
+        // 3. imageURL이 문자열인 경우 직접 사용
+        else if (post.imageURL && typeof post.imageURL === "string") {
+          thumbnailUrl = post.imageURL;
+        }
+        // 4. imageUrl이 배열인 경우 첫 번째 이미지 사용
         else if (
           post.imageUrl &&
           Array.isArray(post.imageUrl) &&
@@ -124,11 +136,11 @@ const PostList = () => {
         ) {
           thumbnailUrl = post.imageUrl[0];
         }
-        // 3. imageUrl이 문자열인 경우 직접 사용
+        // 5. imageUrl이 문자열인 경우 직접 사용
         else if (post.imageUrl && typeof post.imageUrl === "string") {
           thumbnailUrl = post.imageUrl;
         }
-        // 4. images 배열 확인
+        // 6. images 배열 확인
         else if (
           post.images &&
           Array.isArray(post.images) &&
@@ -136,40 +148,41 @@ const PostList = () => {
         ) {
           thumbnailUrl = post.images[0];
         }
-        // 5. image 필드 확인
+        // 7. image 필드 확인
         else if (post.image) {
           thumbnailUrl = post.image;
         }
 
         // ID 필드 통일 (게시글 상세 페이지 이동을 위해 필수)
+        // 백엔드 PostSearchResultDTO는 postId 필드 사용
         const postId = post.id || post.postId || post.post_id || null;
 
         const normalized = {
           ...post,
           // ID 필드 통일 (상세 페이지 이동을 위해 필수)
           id: postId,
-          // 작성자 필드명 통일
+          // 작성자 필드명 통일 (백엔드 PostSearchResultDTO는 author 필드 사용)
           writer:
             post.writer ||
-            post.authorName ||
             post.author ||
+            post.authorName ||
             post.user ||
             post.username ||
             "알 수 없음",
-          // 조회수 필드명 통일
+          // 조회수 필드명 통일 (백엔드 PostSearchResultDTO는 viewCount 필드 사용)
           postView: post.postView || post.viewCount || post.views || 0,
-          // 좋아요 필드명 통일
-          likeCount: post.likeCount || post.likes || post.totalLikes || 0,
-          // 댓글 수 필드명 통일
+          // 좋아요 필드명 통일 (백엔드 PostSearchResultDTO는 totalLikes 필드 사용)
+          likeCount: post.likeCount || post.totalLikes || post.likes || 0,
+          // 댓글 수 필드명 통일 (백엔드 PostSearchResultDTO는 totalComments 필드 사용)
           commentCount:
-            post.commentCount || post.comments || post.totalComments || 0,
-          // 썸네일 URL 필드명 통일
+            post.commentCount || post.totalComments || post.comments || 0,
+          // 썸네일 URL 필드명 통일 (백엔드 PostSearchResultDTO는 imageURL 필드 사용)
           thumbnailUrl: thumbnailUrl,
-          // 날짜 필드명 통일
+          // 날짜 필드명 통일 (백엔드 PostSearchResultDTO는 createdAt 필드 사용)
           createdDate:
             post.createdDate ||
-            post.createDate ||
             post.createdAt ||
+            post.createDate ||
             post.date ||
             post.created_at,
           // 카테고리 필드명 통일
@@ -333,11 +346,20 @@ const PostList = () => {
                           <img
                             src={
                               post.thumbnailUrl ||
+                              (post.imageURL &&
+                              Array.isArray(post.imageURL) &&
+                              post.imageURL.length > 0
+                                ? post.imageURL[0]
+                                : typeof post.imageURL === "string"
+                                ? post.imageURL
+                                : null) ||
                               (post.imageUrl &&
                               Array.isArray(post.imageUrl) &&
                               post.imageUrl.length > 0
                                 ? post.imageUrl[0]
-                                : post.imageUrl) ||
+                                : typeof post.imageUrl === "string"
+                                ? post.imageUrl
+                                : null) ||
                               DEFAULT_IMAGE_URL
                             }
                             alt={post.title || "게시글 이미지"}
@@ -413,6 +435,13 @@ const PostList = () => {
                         <img
                           src={
                             post.thumbnailUrl ||
+                            (post.imageURL &&
+                            Array.isArray(post.imageURL) &&
+                            post.imageURL.length > 0
+                              ? post.imageURL[0]
+                              : typeof post.imageURL === "string"
+                              ? post.imageURL
+                              : null) ||
                             (post.imageUrl &&
                             Array.isArray(post.imageUrl) &&
                             post.imageUrl.length > 0

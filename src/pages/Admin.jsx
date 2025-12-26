@@ -33,6 +33,7 @@ const Admin = () => {
   const [deleting, setDeleting] = useState(false); // 삭제 중 상태
   const [postDeletedStatus, setPostDeletedStatus] = useState(null); // 게시글 삭제 여부 (null: 확인 중, true: 삭제됨, false: 존재함)
   const [commentDeletedStatus, setCommentDeletedStatus] = useState(null); // 댓글 삭제 여부
+  const [syncing, setSyncing] = useState(false); // Typesense 동기화 중 상태
   const pageSize = 10;
 
   // 상태 문자열을 statusId로 매핑 (백엔드 기준)
@@ -444,6 +445,32 @@ const Admin = () => {
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
+  /**
+   * Typesense 데이터 동기화 핸들러
+   */
+  const handleSyncTypesense = async () => {
+    if (
+      !window.confirm(
+        "Typesense 데이터를 동기화하시겠습니까?\n\n이 작업은 시간이 걸릴 수 있습니다."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      setError(null);
+      const result = await adminAPI.syncTypesense();
+      alert(result || "동기화가 완료되었습니다.");
+      logDebug("Admin.handleSyncTypesense", "동기화 완료", result);
+    } catch (error) {
+      logError("Admin.handleSyncTypesense", error);
+      setError(getUserErrorMessage(error, "Typesense 동기화에 실패했습니다."));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getStatusColor = status => {
     switch (status) {
       case "접수 대기":
@@ -490,8 +517,22 @@ const Admin = () => {
     <Layout>
       <div className="admin-container">
         <div className="admin-header">
-          <h1 className="admin-title">관리자 페이지</h1>
-          <p className="admin-subtitle">신고된 게시글 및 댓글 관리</p>
+          <div className="admin-header-content">
+            <div>
+              <h1 className="admin-title">관리자 페이지</h1>
+              <p className="admin-subtitle">신고된 게시글 및 댓글 관리</p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={handleSyncTypesense}
+              disabled={syncing}
+              style={{
+                minWidth: "150px",
+              }}
+            >
+              {syncing ? "동기화 중..." : "Typesense 동기화"}
+            </Button>
+          </div>
         </div>
 
         <ErrorNotice message={error} onClose={() => setError(null)} />
